@@ -220,6 +220,67 @@
       const weekTotals = calculateWeekTotals(weekData);
       const lastWeekTotals = calculateWeekTotals(lastWeekSummary);
 
+      // UI helpers
+      const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+      const pct = (value, goal) => goal <= 0 ? 0 : clamp((value / goal) * 100, 0, 100);
+
+      // Card styling classes
+      const completeCardClass =
+        "bg-gradient-to-b from-emerald-900/35 to-emerald-950/20 border-emerald-800/70";
+
+      const baseCardClass =
+        "bg-zinc-900 border-zinc-800";
+
+      function ProgressCard({ title, value, goal, mode = "min" }) {
+        // mode:
+        // - "min": success when value >= goal (work goals)
+        // - "max": success when value <= goal (diet limits)
+
+        const isComplete = mode === "min" ? value >= goal : value <= goal;
+        const isOver = mode === "max" ? value > goal : false;
+
+        const cardClass = `rounded-lg border p-4 ${isComplete ? completeCardClass : baseCardClass}`;
+        const trackClass = "h-2 w-full rounded-full bg-zinc-800 overflow-hidden";
+        const fillClass =
+          isOver
+            ? "h-full bg-red-500/70"
+            : isComplete
+              ? "h-full bg-emerald-400/70"
+              : "h-full bg-blue-500/60";
+
+        const fillWidth =
+          mode === "max"
+            ? `${pct(value, goal)}%`
+            : `${pct(value, goal)}%`;
+
+        const leftText =
+          mode === "max"
+            ? `${Math.max(0, goal - value)} remaining`
+            : `${Math.max(0, goal - value)} more needed`;
+
+        const rightText =
+          mode === "max"
+            ? `${value}/${goal} max`
+            : `${value}/${goal}`;
+
+        return (
+          <div className={cardClass}>
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <div className="text-sm text-zinc-400">{title}</div>
+              <div className={`text-sm ${isOver ? "text-red-300" : "text-zinc-500"}`}>{rightText}</div>
+            </div>
+
+            <div className="text-2xl font-bold mb-3">
+              {leftText}
+            </div>
+
+            <div className={trackClass}>
+              <div className={fillClass} style={{ width: fillWidth }} />
+            </div>
+          </div>
+        );
+      }
+
       // Week transition modal
       if (showWeekTransition && lastWeekSummary) {
         return (
@@ -298,111 +359,137 @@
             {/* Today's Log */}
             <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
               <h2 className="text-xl font-bold mb-4">Today's Log</h2>
-              <div className="text-sm text-zinc-500 mb-4">
-                {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+
+              <div className="text-sm text-zinc-500 mb-6">
+                {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div>
-                  <label className="block text-sm text-zinc-400 mb-1">Rice Servings</label>
-                  <input 
-                    type="number" 
-                    min="0"
-                    value={todayLog.rice}
-                    onChange={(e) => handleInputChange('rice', e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
-                  />
+              <div className="space-y-4 mb-6">
+                {/* PERSONAL sub-card */}
+                <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-4">
+                  <div className="flex items-baseline justify-between mb-3">
+                    <div className="text-xs uppercase tracking-wide text-zinc-500 font-semibold">
+                      Personal
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm text-zinc-400 mb-1">Rice Servings</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={todayLog.rice}
+                        onChange={(e) => handleInputChange('rice', e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm text-zinc-400 mb-1">Breakfast Carbs</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={todayLog.breakfastCarbs}
+                        onChange={(e) => handleInputChange('breakfastCarbs', e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm text-zinc-400 mb-1">Potato Chips</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={todayLog.chips}
+                        onChange={(e) => handleInputChange('chips', e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm text-zinc-400 mb-1">Breakfast Carbs</label>
-                  <input 
-                    type="number" 
-                    min="0"
-                    value={todayLog.breakfastCarbs}
-                    onChange={(e) => handleInputChange('breakfastCarbs', e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
-                  />
-                </div>
+                {/* WORK sub-card */}
+                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+                  <div className="flex items-baseline justify-between mb-3">
+                    <div className="text-xs uppercase tracking-wide text-zinc-500 font-semibold">
+                      Work
+                    </div>
+                  </div>
 
-                <div>
-                  <label className="block text-sm text-zinc-400 mb-1">Potato Chips</label>
-                  <input 
-                    type="number" 
-                    min="0"
-                    value={todayLog.chips}
-                    onChange={(e) => handleInputChange('chips', e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
-                  />
-                </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm text-zinc-400 mb-1">Workshop Pitches</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={todayLog.workshopPitches}
+                        onChange={(e) => handleInputChange('workshopPitches', e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-sm text-zinc-400 mb-1">Workshop Pitches</label>
-                  <input 
-                    type="number" 
-                    min="0"
-                    value={todayLog.workshopPitches}
-                    onChange={(e) => handleInputChange('workshopPitches', e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-sm text-zinc-400 mb-1">Free Tools Added</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={todayLog.freeTools}
+                        onChange={(e) => handleInputChange('freeTools', e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-sm text-zinc-400 mb-1">Free Tools Added</label>
-                  <input 
-                    type="number" 
-                    min="0"
-                    value={todayLog.freeTools}
-                    onChange={(e) => handleInputChange('freeTools', e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-sm text-zinc-400 mb-1">LinkedIn Posts</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={todayLog.linkedInPosts}
+                        onChange={(e) => handleInputChange('linkedInPosts', e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-sm text-zinc-400 mb-1">LinkedIn Posts</label>
-                  <input 
-                    type="number" 
-                    min="0"
-                    value={todayLog.linkedInPosts}
-                    onChange={(e) => handleInputChange('linkedInPosts', e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-sm text-zinc-400 mb-1">LinkedIn Engagement Today?</label>
+                      <div className="flex items-center gap-3 h-[42px] bg-zinc-950 border border-zinc-800 rounded px-3">
+                        <input
+                          type="checkbox"
+                          checked={todayLog.linkedInEngagement}
+                          onChange={(e) => handleInputChange('linkedInEngagement', e.target.checked)}
+                          className="w-5 h-5 bg-zinc-950 border border-zinc-800 rounded"
+                        />
+                        <span className="text-sm text-zinc-400">Done</span>
+                      </div>
+                    </div>
 
-                <div>
-                  <label className="block text-sm text-zinc-400 mb-1">LinkedIn Engagement Today?</label>
-                  <input 
-                    type="checkbox"
-                    checked={todayLog.linkedInEngagement}
-                    onChange={(e) => handleInputChange('linkedInEngagement', e.target.checked)}
-                    className="w-5 h-5 bg-zinc-950 border border-zinc-800 rounded"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-sm text-zinc-400 mb-1">LinkedIn Cold DMs</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={todayLog.linkedInDMs}
+                        onChange={(e) => handleInputChange('linkedInDMs', e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-sm text-zinc-400 mb-1">LinkedIn Cold DMs</label>
-                  <input 
-                    type="number" 
-                    min="0"
-                    value={todayLog.linkedInDMs}
-                    onChange={(e) => handleInputChange('linkedInDMs', e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm text-zinc-400 mb-1">TikTok Videos</label>
-                  <input 
-                    type="number" 
-                    min="0"
-                    value={todayLog.tiktoks}
-                    onChange={(e) => handleInputChange('tiktoks', e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
-                  />
+                    <div>
+                      <label className="block text-sm text-zinc-400 mb-1">TikTok Videos</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={todayLog.tiktoks}
+                        onChange={(e) => handleInputChange('tiktoks', e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <button 
+              <button
                 onClick={saveTodayLog}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg transition"
               >
@@ -415,12 +502,12 @@
               <h2 className="text-xl font-bold">Week Summary</h2>
 
               {/* YouTube Monthly */}
-              <div 
+              <div
                 onClick={toggleYoutube}
                 className={`p-4 rounded-lg border cursor-pointer transition ${
-                  weekData.monthlyTracking.youtubePosted 
-                    ? 'bg-green-900/20 border-green-800' 
-                    : 'bg-zinc-900 border-zinc-800'
+                  weekData.monthlyTracking.youtubePosted
+                    ? "bg-gradient-to-b from-emerald-900/35 to-emerald-950/20 border-emerald-800/70"
+                    : "bg-zinc-900 border-zinc-800"
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -428,86 +515,25 @@
                   {weekData.monthlyTracking.youtubePosted && <span className="text-2xl">🎉</span>}
                 </div>
                 {weekData.monthlyTracking.youtubePosted && (
-                  <div className="text-sm text-green-400 mt-1">Goal completed!</div>
+                  <div className="text-sm text-emerald-300 mt-1">Goal completed!</div>
                 )}
               </div>
 
               {/* Diet Limits */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-                  <div className="text-sm text-zinc-400 mb-1">Rice</div>
-                  <div className={`text-2xl font-bold ${7 <= weekTotals.rice ? 'text-green-400' : ''}`}>
-  {7 - weekTotals.rice} remaining
-</div>
-                  <div className="text-sm text-zinc-500">of 7 max</div>
-                </div>
-
-                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-                  <div className="text-sm text-zinc-400 mb-1">Breakfast Carbs</div>
-                  <div className={`text-2xl font-bold ${3 <= weekTotals.breakfastCarbs ? 'text-green-400' : ''}`}>
-  {3 - weekTotals.breakfastCarbs} remaining
-</div>
-                  <div className="text-sm text-zinc-500">of 3 max</div>
-                </div>
-
-                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-                  <div className="text-sm text-zinc-400 mb-1">Potato Chips</div>
-                  <div className={`text-2xl font-bold ${1 <= weekTotals.chips ? 'text-green-400' : ''}`}>
-  {1 - weekTotals.chips} remaining
-</div>
-                  <div className="text-sm text-zinc-500">of 1 max</div>
-                </div>
+                <ProgressCard title="Rice" value={weekTotals.rice} goal={7} mode="max" />
+                <ProgressCard title="Breakfast Carbs" value={weekTotals.breakfastCarbs} goal={3} mode="max" />
+                <ProgressCard title="Potato Chips" value={weekTotals.chips} goal={1} mode="max" />
               </div>
 
               {/* Work Minimums */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-                  <div className="text-sm text-zinc-400 mb-1">Workshop Pitches</div>
-                  <div className={`text-2xl font-bold ${3 <= weekTotals.workshopPitches ? 'text-green-400' : ''}`}>
-                    {Math.max(0, 3 - weekTotals.workshopPitches)} more needed
-                  </div>
-                  <div className="text-sm text-zinc-500">{weekTotals.workshopPitches}/3</div>
-                </div>
-
-                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-                  <div className="text-sm text-zinc-400 mb-1">Free Tools</div>
-                  <div className={`text-2xl font-bold ${1 <= weekTotals.freeTools ? 'text-green-400' : ''}`}>
-                    {Math.max(0, 1 - weekTotals.freeTools)} more needed
-                  </div>
-                  <div className="text-sm text-zinc-500">{weekTotals.freeTools}/1</div>
-                </div>
-
-                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-                  <div className="text-sm text-zinc-400 mb-1">LinkedIn Posts</div>
-                  <div className={`text-2xl font-bold ${2 <= weekTotals.linkedInPosts ? 'text-green-400' : ''}`}>
-                    {Math.max(0, 2 - weekTotals.linkedInPosts)} more needed
-                  </div>
-                  <div className="text-sm text-zinc-500">{weekTotals.linkedInPosts}/2</div>
-                </div>
-
-                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-                  <div className="text-sm text-zinc-400 mb-1">LinkedIn Engagement</div>
-                  <div className={`text-2xl font-bold ${4 <= weekTotals.linkedInEngagementDays ? 'text-green-400' : ''}`}>
-                    {Math.max(0, 4 - weekTotals.linkedInEngagementDays)} more days needed
-                  </div>
-                  <div className="text-sm text-zinc-500">{weekTotals.linkedInEngagementDays}/4 days</div>
-                </div>
-
-                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-                  <div className="text-sm text-zinc-400 mb-1">LinkedIn Cold DMs</div>
-                  <div className={`text-2xl font-bold ${2 <= weekTotals.linkedInDMs ? 'text-green-400' : ''}`}>
-                    {Math.max(0, 2 - weekTotals.linkedInDMs)} more needed
-                  </div>
-                  <div className="text-sm text-zinc-500">{weekTotals.linkedInDMs}/2</div>
-                </div>
-
-                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-                  <div className="text-sm text-zinc-400 mb-1">TikTok Videos</div>
-                  <div className={`text-2xl font-bold ${1 <= weekTotals.tiktoks ? 'text-green-400' : ''}`}>
-                    {Math.max(0, 1 - weekTotals.tiktoks)} more needed
-                  </div>
-                  <div className="text-sm text-zinc-500">{weekTotals.tiktoks}/1</div>
-                </div>
+                <ProgressCard title="Workshop Pitches" value={weekTotals.workshopPitches} goal={3} mode="min" />
+                <ProgressCard title="Free Tools" value={weekTotals.freeTools} goal={1} mode="min" />
+                <ProgressCard title="LinkedIn Posts" value={weekTotals.linkedInPosts} goal={2} mode="min" />
+                <ProgressCard title="LinkedIn Engagement" value={weekTotals.linkedInEngagementDays} goal={4} mode="min" />
+                <ProgressCard title="LinkedIn Cold DMs" value={weekTotals.linkedInDMs} goal={2} mode="min" />
+                <ProgressCard title="TikTok Videos" value={weekTotals.tiktoks} goal={1} mode="min" />
               </div>
             </div>
 
