@@ -46,6 +46,15 @@
   return new Date(year, month - 1, day);
 };
 
+      // Get today's date as YYYY-MM-DD in local time
+      const getTodayLocal = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
       // Get Monday of current week
       const getMondayOfWeek = (date) => {
   const d = new Date(date);
@@ -69,7 +78,7 @@
       useEffect(() => {
         const stored = localStorage.getItem('habitData');
         const currentMonday = getMondayOfWeek(new Date());
-        const today = new Date().toISOString().split('T')[0];
+        const today = getTodayLocal();
 
         if (!stored) {
           // First time user
@@ -108,7 +117,7 @@
 
       const startFreshWeek = () => {
         const currentMonday = getMondayOfWeek(new Date());
-        const today = new Date().toISOString().split('T')[0];
+        const today = getTodayLocal();
         
         // Preserve YouTube status if same month
         const currentMonth = getCurrentMonth();
@@ -151,7 +160,7 @@
       const saveTodayLog = () => {
         if (!weekData) return;
 
-        const today = new Date().toISOString().split('T')[0];
+        const today = getTodayLocal();
         const updatedLogs = [...weekData.dailyLogs.filter(log => log.date !== today)];
         updatedLogs.push({ ...todayLog, date: today });
 
