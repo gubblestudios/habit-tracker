@@ -40,6 +40,12 @@
       });
       const [expandDailyLog, setExpandDailyLog] = useState(false);
 
+      // Parse date string as local date (YYYY-MM-DD)
+      const parseLocalDate = (dateString) => {
+  const [year, month, day] = dateString.split('-');
+  return new Date(year, month - 1, day);
+};
+
       // Get Monday of current week
       const getMondayOfWeek = (date) => {
   const d = new Date(date);
@@ -276,7 +282,7 @@
             <div className="text-center">
               <h1 className="text-3xl font-bold mb-2">Habit Tracker</h1>
               <div className="text-zinc-500">
-                Week of {new Date(weekData.weekStartDate + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric" })}
+                Week of {parseLocalDate(weekData.weekStartDate).toLocaleDateString("en-US", { month: "long", day: "numeric" })}
               </div>
             </div>
 
@@ -512,14 +518,14 @@
                     <div className="text-center text-zinc-500 py-8">No logs yet this week</div>
                   ) : (
                     weekData.dailyLogs
-                      .sort((a, b) => new Date(b.date) - new Date(a.date))
+                      .sort((a, b) => parseLocalDate(b.date) - parseLocalDate(a.date))
                       .map(log => (
                         <div key={log.date} className="bg-zinc-950 rounded p-4">
                           <div className="font-medium mb-2">
-                            {new Date(log.date).toLocaleDateString('en-US', { 
-                              weekday: 'long', 
-                              month: 'short', 
-                              day: 'numeric' 
+                            {parseLocalDate(log.date).toLocaleDateString('en-US', {
+                              weekday: 'long',
+                              month: 'short',
+                              day: 'numeric'
                             })}
                           </div>
                           <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
