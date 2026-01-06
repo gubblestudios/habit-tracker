@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Habit Tracker</title>
+  <script crossorigin src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background-color: #0a0a0a;
+      color: #e5e5e5;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    console.log('Script loaded, React:', typeof React, 'ReactDOM:', typeof ReactDOM);
+    const { useState, useEffect } = React;
+
+    function HabitTracker() {
+      console.log('HabitTracker rendering');
+      const [showWeekTransition, setShowWeekTransition] = useState(false);
+      const [lastWeekSummary, setLastWeekSummary] = useState(null);
+      const [weekData, setWeekData] = useState(null);
+      const [todayLog, setTodayLog] = useState({
+        rice: 0,
+        breakfastCarbs: 0,
+        chips: 0,
+        workshopPitches: 0,
+        freeTools: 0,
+        linkedInPosts: 0,
+        linkedInEngagement: false,
+        linkedInDMs: 0,
+        tiktoks: 0
+      });
+      const [expandDailyLog, setExpandDailyLog] = useState(false);
+
+      // Get Monday of current week
+      const getMondayOfWeek = (date) => {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = (day === 0 ? -6 : 1) - day;
+  d.setDate(d.getDate() + diff);
+
+  // Use local date to avoid timezone issues
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const dayOfMonth = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${dayOfMonth}`;
+};
+
+      // Get current month
+      const getCurrentMonth = () => {
+        return new Date().toISOString().slice(0, 7);
+      };
+
+      // Initialize or load data
+      useEffect(() => {
+        const stored = localStorage.getItem('habitData');
+        const currentMonday = getMondayOfWeek(new Date());
+        const today = new Date().toISOString().split('T')[0];
+
+        if (!stored) {
+          // First time user
+          initializeWeek(currentMonday, today);
+        } else {
+          const data = JSON.parse(stored);
+          
+          // Check if we've crossed into new week
+          if (data.weekStartDate !== currentMonday) {
+            // Save last week for summary
+            setLastWeekSummary(data);
+            setShowWeekTransition(true);
+          } else {
+            setWeekData(data);
+            // Load today's log if exists
+            const todayEntry = data.dailyLogs.find(log => log.date === today);
+            if (todayEntry) {
+              setTodayLog(todayEntry);
+            }
+          }
+        }
+      }, []);
+
+      const initializeWeek = (mondayDate, today) => {
+        const newData = {
+          weekStartDate: mondayDate,
+          dailyLogs: [],
+          monthlyTracking: {
+            month: getCurrentMonth(),
+            youtubePosted: false
+          }
+        };
+        setWeekData(newData);
+        localStorage.setItem('habitData', JSON.stringify(newData));
+      };
+
+      const startFreshWeek = () => {
+        const currentMonday = getMondayOfWeek(new Date());
+        const today = new Date().toISOString().split('T')[0];
+        
+        // Preserve YouTube status if same month
+        const currentMonth = getCurrentMonth();
+        const youtubeStatus = lastWeekSummary?.monthlyTracking?.month === currentMonth 
+          ? lastWeekSummary.monthlyTracking.youtubePosted 
+          : false;
+
+        const newData = {
+          weekStartDate: currentMonday,
+          dailyLogs: [],
+          monthlyTracking: {
+            month: currentMonth,
+            youtubePosted: youtubeStatus
+          }
+        };
+        
+        setWeekData(newData);
+        localStorage.setItem('habitData', JSON.stringify(newData));
+        setShowWeekTransition(false);
+        setTodayLog({
+          rice: 0,
+          breakfastCarbs: 0,
+          chips: 0,
+          workshopPitches: 0,
+          freeTools: 0,
+          linkedInPosts: 0,
+          linkedInEngagement: false,
+          linkedInDMs: 0,
+          tiktoks: 0
+        });
+      };
+
+      const handleInputChange = (field, value) => {
+        setTodayLog(prev => ({
+          ...prev,
+          [field]: field === 'linkedInEngagement' ? value : parseInt(value) || 0
+        }));
+      };
+
+      const saveTodayLog = () => {
+        if (!weekData) return;
+
+        const today = new Date().toISOString().split('T')[0];
+        const updatedLogs = [...weekData.dailyLogs.filter(log => log.date !== today)];
+        updatedLogs.push({ ...todayLog, date: today });
+
+        const updatedData = {
+          ...weekData,
+          dailyLogs: updatedLogs
+        };
+
+        setWeekData(updatedData);
+        localStorage.setItem('habitData', JSON.stringify(updatedData));
+      };
+
+      const toggleYoutube = () => {
+        if (!weekData) return;
+
+        const updatedData = {
+          ...weekData,
+          monthlyTracking: {
+            ...weekData.monthlyTracking,
+            youtubePosted: !weekData.monthlyTracking.youtubePosted
+          }
+        };
+
+        setWeekData(updatedData);
+        localStorage.setItem('habitData', JSON.stringify(updatedData));
+      };
+
+      // Calculate week totals
+      const calculateWeekTotals = (data) => {
+        if (!data) return null;
+
+        const totals = data.dailyLogs.reduce((acc, log) => ({
+          rice: acc.rice + (log.rice || 0),
+          breakfastCarbs: acc.breakfastCarbs + (log.breakfastCarbs || 0),
+          chips: acc.chips + (log.chips || 0),
+          workshopPitches: acc.workshopPitches + (log.workshopPitches || 0),
+          freeTools: acc.freeTools + (log.freeTools || 0),
+          linkedInPosts: acc.linkedInPosts + (log.linkedInPosts || 0),
+          linkedInEngagementDays: acc.linkedInEngagementDays + (log.linkedInEngagement ? 1 : 0),
+          linkedInDMs: acc.linkedInDMs + (log.linkedInDMs || 0),
+          tiktoks: acc.tiktoks + (log.tiktoks || 0)
+        }), {
+          rice: 0,
+          breakfastCarbs: 0,
+          chips: 0,
+          workshopPitches: 0,
+          freeTools: 0,
+          linkedInPosts: 0,
+          linkedInEngagementDays: 0,
+          linkedInDMs: 0,
+          tiktoks: 0
+        });
+
+        return totals;
+      };
+
+      const weekTotals = calculateWeekTotals(weekData);
+      const lastWeekTotals = calculateWeekTotals(lastWeekSummary);
+
+      // Week transition modal
+      if (showWeekTransition && lastWeekSummary) {
+        return (
+          <div className="min-h-screen flex items-center justify-center p-4">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-8 max-w-2xl w-full">
+              <h2 className="text-2xl font-bold mb-6">Last Week Complete!</h2>
+              
+              <div className="space-y-4 mb-8">
+                <h3 className="text-lg font-semibold text-zinc-400">Summary</h3>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-zinc-950 p-4 rounded">
+                    <div className="text-sm text-zinc-500">Rice</div>
+                    <div className="text-xl">{lastWeekTotals.rice}/7</div>
+                  </div>
+                  <div className="bg-zinc-950 p-4 rounded">
+                    <div className="text-sm text-zinc-500">Breakfast Carbs</div>
+                    <div className="text-xl">{lastWeekTotals.breakfastCarbs}/3</div>
+                  </div>
+                  <div className="bg-zinc-950 p-4 rounded">
+                    <div className="text-sm text-zinc-500">Chips</div>
+                    <div className="text-xl">{lastWeekTotals.chips}/1</div>
+                  </div>
+                  <div className="bg-zinc-950 p-4 rounded">
+                    <div className="text-sm text-zinc-500">Workshop Pitches</div>
+                    <div className="text-xl">{lastWeekTotals.workshopPitches}/3</div>
+                  </div>
+                  <div className="bg-zinc-950 p-4 rounded">
+                    <div className="text-sm text-zinc-500">Free Tools</div>
+                    <div className="text-xl">{lastWeekTotals.freeTools}/1</div>
+                  </div>
+                  <div className="bg-zinc-950 p-4 rounded">
+                    <div className="text-sm text-zinc-500">LinkedIn Posts</div>
+                    <div className="text-xl">{lastWeekTotals.linkedInPosts}/2</div>
+                  </div>
+                  <div className="bg-zinc-950 p-4 rounded">
+                    <div className="text-sm text-zinc-500">LinkedIn Engagement</div>
+                    <div className="text-xl">{lastWeekTotals.linkedInEngagementDays}/4 days</div>
+                  </div>
+                  <div className="bg-zinc-950 p-4 rounded">
+                    <div className="text-sm text-zinc-500">LinkedIn DMs</div>
+                    <div className="text-xl">{lastWeekTotals.linkedInDMs}/2</div>
+                  </div>
+                  <div className="bg-zinc-950 p-4 rounded">
+                    <div className="text-sm text-zinc-500">TikToks</div>
+                    <div className="text-xl">{lastWeekTotals.tiktoks}/1</div>
+                  </div>
+                </div>
+              </div>
+
+              <button 
+                onClick={startFreshWeek}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg transition"
+              >
+                Start Fresh Week
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      if (!weekData) return null;
+
+      return (
+        <div className="min-h-screen p-4 md:p-8">
+          <div className="max-w-4xl mx-auto space-y-8">
+            
+            {/* Header */}
+            <div className="text-center">
+              <h1 className="text-3xl font-bold mb-2">Habit Tracker</h1>
+              <div className="text-zinc-500">
+                Week of {new Date(weekData.weekStartDate + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric" })}
+              </div>
+            </div>
+
+            {/* Today's Log */}
+            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
+              <h2 className="text-xl font-bold mb-4">Today's Log</h2>
+              <div className="text-sm text-zinc-500 mb-4">
+                {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">Rice Servings</label>
+                  <input 
+                    type="number" 
+                    min="0"
+                    value={todayLog.rice}
+                    onChange={(e) => handleInputChange('rice', e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">Breakfast Carbs</label>
+                  <input 
+                    type="number" 
+                    min="0"
+                    value={todayLog.breakfastCarbs}
+                    onChange={(e) => handleInputChange('breakfastCarbs', e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">Potato Chips</label>
+                  <input 
+                    type="number" 
+                    min="0"
+                    value={todayLog.chips}
+                    onChange={(e) => handleInputChange('chips', e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">Workshop Pitches</label>
+                  <input 
+                    type="number" 
+                    min="0"
+                    value={todayLog.workshopPitches}
+                    onChange={(e) => handleInputChange('workshopPitches', e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">Free Tools Added</label>
+                  <input 
+                    type="number" 
+                    min="0"
+                    value={todayLog.freeTools}
+                    onChange={(e) => handleInputChange('freeTools', e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">LinkedIn Posts</label>
+                  <input 
+                    type="number" 
+                    min="0"
+                    value={todayLog.linkedInPosts}
+                    onChange={(e) => handleInputChange('linkedInPosts', e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">LinkedIn Engagement Today?</label>
+                  <input 
+                    type="checkbox"
+                    checked={todayLog.linkedInEngagement}
+                    onChange={(e) => handleInputChange('linkedInEngagement', e.target.checked)}
+                    className="w-5 h-5 bg-zinc-950 border border-zinc-800 rounded"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">LinkedIn Cold DMs</label>
+                  <input 
+                    type="number" 
+                    min="0"
+                    value={todayLog.linkedInDMs}
+                    onChange={(e) => handleInputChange('linkedInDMs', e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1">TikTok Videos</label>
+                  <input 
+                    type="number" 
+                    min="0"
+                    value={todayLog.tiktoks}
+                    onChange={(e) => handleInputChange('tiktoks', e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
+                  />
+                </div>
+              </div>
+
+              <button 
+                onClick={saveTodayLog}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg transition"
+              >
+                Save Today's Log
+              </button>
+            </div>
+
+            {/* Week Summary */}
+            <div className="space-y-4">
+              <h2 className="text-xl font-bold">Week Summary</h2>
+
+              {/* YouTube Monthly */}
+              <div 
+                onClick={toggleYoutube}
+                className={`p-4 rounded-lg border cursor-pointer transition ${
+                  weekData.monthlyTracking.youtubePosted 
+                    ? 'bg-green-900/20 border-green-800' 
+                    : 'bg-zinc-900 border-zinc-800'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span>YouTube Monthly Tutorial</span>
+                  {weekData.monthlyTracking.youtubePosted && <span className="text-2xl">🎉</span>}
+                </div>
+                {weekData.monthlyTracking.youtubePosted && (
+                  <div className="text-sm text-green-400 mt-1">Goal completed!</div>
+                )}
+              </div>
+
+              {/* Diet Limits */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+                  <div className="text-sm text-zinc-400 mb-1">Rice</div>
+                  <div className={`text-2xl font-bold ${7 <= weekTotals.rice ? 'text-green-400' : ''}`}>
+  {7 - weekTotals.rice} remaining
+</div>
+                  <div className="text-sm text-zinc-500">of 7 max</div>
+                </div>
+
+                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+                  <div className="text-sm text-zinc-400 mb-1">Breakfast Carbs</div>
+                  <div className={`text-2xl font-bold ${3 <= weekTotals.breakfastCarbs ? 'text-green-400' : ''}`}>
+  {3 - weekTotals.breakfastCarbs} remaining
+</div>
+                  <div className="text-sm text-zinc-500">of 3 max</div>
+                </div>
+
+                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+                  <div className="text-sm text-zinc-400 mb-1">Potato Chips</div>
+                  <div className={`text-2xl font-bold ${1 <= weekTotals.chips ? 'text-green-400' : ''}`}>
+  {1 - weekTotals.chips} remaining
+</div>
+                  <div className="text-sm text-zinc-500">of 1 max</div>
+                </div>
+              </div>
+
+              {/* Work Minimums */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+                  <div className="text-sm text-zinc-400 mb-1">Workshop Pitches</div>
+                  <div className={`text-2xl font-bold ${3 <= weekTotals.workshopPitches ? 'text-green-400' : ''}`}>
+                    {Math.max(0, 3 - weekTotals.workshopPitches)} more needed
+                  </div>
+                  <div className="text-sm text-zinc-500">{weekTotals.workshopPitches}/3</div>
+                </div>
+
+                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+                  <div className="text-sm text-zinc-400 mb-1">Free Tools</div>
+                  <div className={`text-2xl font-bold ${1 <= weekTotals.freeTools ? 'text-green-400' : ''}`}>
+                    {Math.max(0, 1 - weekTotals.freeTools)} more needed
+                  </div>
+                  <div className="text-sm text-zinc-500">{weekTotals.freeTools}/1</div>
+                </div>
+
+                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+                  <div className="text-sm text-zinc-400 mb-1">LinkedIn Posts</div>
+                  <div className={`text-2xl font-bold ${2 <= weekTotals.linkedInPosts ? 'text-green-400' : ''}`}>
+                    {Math.max(0, 2 - weekTotals.linkedInPosts)} more needed
+                  </div>
+                  <div className="text-sm text-zinc-500">{weekTotals.linkedInPosts}/2</div>
+                </div>
+
+                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+                  <div className="text-sm text-zinc-400 mb-1">LinkedIn Engagement</div>
+                  <div className={`text-2xl font-bold ${4 <= weekTotals.linkedInEngagementDays ? 'text-green-400' : ''}`}>
+                    {Math.max(0, 4 - weekTotals.linkedInEngagementDays)} more days needed
+                  </div>
+                  <div className="text-sm text-zinc-500">{weekTotals.linkedInEngagementDays}/4 days</div>
+                </div>
+
+                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+                  <div className="text-sm text-zinc-400 mb-1">LinkedIn Cold DMs</div>
+                  <div className={`text-2xl font-bold ${2 <= weekTotals.linkedInDMs ? 'text-green-400' : ''}`}>
+                    {Math.max(0, 2 - weekTotals.linkedInDMs)} more needed
+                  </div>
+                  <div className="text-sm text-zinc-500">{weekTotals.linkedInDMs}/2</div>
+                </div>
+
+                <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+                  <div className="text-sm text-zinc-400 mb-1">TikTok Videos</div>
+                  <div className={`text-2xl font-bold ${1 <= weekTotals.tiktoks ? 'text-green-400' : ''}`}>
+                    {Math.max(0, 1 - weekTotals.tiktoks)} more needed
+                  </div>
+                  <div className="text-sm text-zinc-500">{weekTotals.tiktoks}/1</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Daily Log Breakdown */}
+            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
+              <button
+                onClick={() => setExpandDailyLog(!expandDailyLog)}
+                className="w-full flex items-center justify-between text-lg font-semibold"
+              >
+                <span>Daily Log Breakdown</span>
+                <span className="text-zinc-500">{expandDailyLog ? '▼' : '▶'}</span>
+              </button>
+
+              {expandDailyLog && (
+                <div className="mt-4 space-y-3">
+                  {weekData.dailyLogs.length === 0 ? (
+                    <div className="text-center text-zinc-500 py-8">No logs yet this week</div>
+                  ) : (
+                    weekData.dailyLogs
+                      .sort((a, b) => new Date(b.date) - new Date(a.date))
+                      .map(log => (
+                        <div key={log.date} className="bg-zinc-950 rounded p-4">
+                          <div className="font-medium mb-2">
+                            {new Date(log.date).toLocaleDateString('en-US', { 
+                              weekday: 'long', 
+                              month: 'short', 
+                              day: 'numeric' 
+                            })}
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
+                            {log.rice > 0 && <div className="text-zinc-400">Rice: {log.rice}</div>}
+                            {log.breakfastCarbs > 0 && <div className="text-zinc-400">Breakfast: {log.breakfastCarbs}</div>}
+                            {log.chips > 0 && <div className="text-zinc-400">Chips: {log.chips}</div>}
+                            {log.workshopPitches > 0 && <div className="text-zinc-400">Pitches: {log.workshopPitches}</div>}
+                            {log.freeTools > 0 && <div className="text-zinc-400">Tools: {log.freeTools}</div>}
+                            {log.linkedInPosts > 0 && <div className="text-zinc-400">LI Posts: {log.linkedInPosts}</div>}
+                            {log.linkedInEngagement && <div className="text-zinc-400">LI Engaged ✓</div>}
+                            {log.linkedInDMs > 0 && <div className="text-zinc-400">LI DMs: {log.linkedInDMs}</div>}
+                            {log.tiktoks > 0 && <div className="text-zinc-400">TikToks: {log.tiktoks}</div>}
+                          </div>
+                        </div>
+                      ))
+                  )}
+                </div>
+              )}
+            </div>
+
+          </div>
+        </div>
+      );
+    }
+
+   
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(React.createElement(HabitTracker));
+  </script>
+</body>
+</html>
