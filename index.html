@@ -99,6 +99,50 @@
         return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
       };
 
+      // Helper: get Sunday date from a week's Monday
+      const getSundayOfWeek = (mondayDateString) => {
+        const monday = parseLocalDate(mondayDateString);
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        const year = sunday.getFullYear();
+        const month = String(sunday.getMonth() + 1).padStart(2, '0');
+        const day = String(sunday.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
+      // Helper: check if a date has a log entry
+      const hasLogForDate = (data, dateString) => {
+        return data.dailyLogs.some(log => log.date === dateString);
+      };
+
+      // Helper: auto-archive last week and start fresh (no modal)
+      const autoArchiveAndStartFresh = (oldData, history) => {
+        const currentMonday = getMondayOfWeek(new Date());
+        const currentMonth = getCurrentMonth();
+        const youtubeStatus = oldData?.monthlyTracking?.month === currentMonth
+          ? oldData.monthlyTracking.youtubePosted
+          : false;
+
+        // Save old week to history
+        const updatedHistory = [...history, oldData];
+        setWeekHistory(updatedHistory);
+        localStorage.setItem('habitHistory', JSON.stringify(updatedHistory));
+
+        // Create new week
+        const newData = {
+          weekStartDate: currentMonday,
+          dailyLogs: [],
+          monthlyTracking: {
+            month: currentMonth,
+            youtubePosted: youtubeStatus
+          }
+        };
+
+        setWeekData(newData);
+        localStorage.setItem('habitData', JSON.stringify(newData));
+        setSelectedDate(getTodayLocal());
+      };
+
       // Initialize or load data
       useEffect(() => {
         const stored = localStorage.getItem('habitData');
@@ -107,22 +151,29 @@
         const today = getTodayLocal();
 
         // Load history if exists
-        if (historyStored) {
-          const history = JSON.parse(historyStored);
-          setWeekHistory(history);
-        }
+        const history = historyStored ? JSON.parse(historyStored) : [];
+        setWeekHistory(history);
 
         if (!stored) {
           // First time user
           initializeWeek(currentMonday, today);
         } else {
           const data = JSON.parse(stored);
-          
+
           // Check if we've crossed into new week
           if (data.weekStartDate !== currentMonday) {
-            // Save last week for summary and to history
-            setLastWeekSummary(data);
-            setShowWeekTransition(true);
+            // Check if Sunday of last week was logged
+            const lastSunday = getSundayOfWeek(data.weekStartDate);
+            const sundayLogged = hasLogForDate(data, lastSunday);
+
+            if (sundayLogged) {
+              // Sunday logged - auto-archive silently
+              autoArchiveAndStartFresh(data, history);
+            } else {
+              // Sunday not logged - show modal to let user decide
+              setLastWeekSummary(data);
+              setShowWeekTransition(true);
+            }
           } else {
             setWeekData(data);
             // Load selected date's log if exists (defaults to today)
@@ -197,6 +248,36 @@
           linkedInEngagement: false
         });
         setSelectedDate(getTodayLocal());
+      };
+
+      // Dismiss modal and let user finish logging last week
+      const continueLastWeek = () => {
+        if (!lastWeekSummary) return;
+
+        // Load the old week data so user can edit it
+        setWeekData(lastWeekSummary);
+
+        // Set selected date to Sunday of that week
+        const lastSunday = getSundayOfWeek(lastWeekSummary.weekStartDate);
+        setSelectedDate(lastSunday);
+
+        // Load Sunday's log if exists, otherwise reset
+        const sundayEntry = lastWeekSummary.dailyLogs.find(log => log.date === lastSunday);
+        if (sundayEntry) {
+          setTodayLog(sundayEntry);
+        } else {
+          setTodayLog({
+            rice: 0,
+            breakfastCarbs: 0,
+            chips: 0,
+            workshopPitches: 0,
+            freeTools: 0,
+            linkedInPosts: 0,
+            linkedInEngagement: false
+          });
+        }
+
+        setShowWeekTransition(false);
       };
 
       const handleInputChange = (field, value) => {
@@ -483,7 +564,7 @@
         );
       }
 
-      // Week transition modal
+      // Week transition modal (only shows if Sunday not logged)
       if (showWeekTransition && lastWeekSummary) {
         // Calculate week date range
         const weekStart = parseLocalDate(lastWeekSummary.weekStartDate);
@@ -491,11 +572,19 @@
         weekEnd.setDate(weekStart.getDate() + 6);
         const startFormatted = formatDateShort(lastWeekSummary.weekStartDate);
         const endFormatted = formatDateShort(`${weekEnd.getFullYear()}-${String(weekEnd.getMonth() + 1).padStart(2, '0')}-${String(weekEnd.getDate()).padStart(2, '0')}`);
-        
+
         return (
           <div className="min-h-screen flex items-center justify-center p-4">
             <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-8 max-w-2xl w-full">
-              <h2 className="text-2xl font-bold mb-6">Summary for {startFormatted} - {endFormatted}</h2>
+              {/* Gentle reminder */}
+              <div className="bg-violet-900/20 border border-violet-700/30 rounded-lg p-4 mb-6">
+                <div className="text-violet-300 font-medium">Sunday isn't logged yet</div>
+                <p className="text-violet-300/60 text-sm mt-1">
+                  You can go back and complete last week's log, or skip and start fresh.
+                </p>
+              </div>
+
+              <h2 className="text-2xl font-bold mb-6">Last Week: {startFormatted} - {endFormatted}</h2>
               
               <div className="space-y-4 mb-8">
                 <h3 className="text-lg font-semibold text-zinc-400">Summary</h3>
@@ -560,12 +649,20 @@
                 </div>
               </div>
 
-              <button 
-                onClick={startFreshWeek}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg transition"
-              >
-                Start Fresh Week
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={continueLastWeek}
+                  className="flex-1 bg-violet-700 hover:bg-violet-600 text-white font-medium py-3 rounded-lg transition"
+                >
+                  Got it, let me log Sunday
+                </button>
+                <button
+                  onClick={startFreshWeek}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg transition"
+                >
+                  Skip & Start Fresh Week
+                </button>
+              </div>
             </div>
           </div>
         );
@@ -701,6 +798,7 @@
                         min="0"
                         value={todayLog.rice}
                         onChange={(e) => handleInputChange('rice', e.target.value)}
+                        onFocus={(e) => e.target.select()}
                         className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
                       />
                     </div>
@@ -712,6 +810,7 @@
                         min="0"
                         value={todayLog.breakfastCarbs}
                         onChange={(e) => handleInputChange('breakfastCarbs', e.target.value)}
+                        onFocus={(e) => e.target.select()}
                         className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
                       />
                     </div>
@@ -723,6 +822,7 @@
                         min="0"
                         value={todayLog.chips}
                         onChange={(e) => handleInputChange('chips', e.target.value)}
+                        onFocus={(e) => e.target.select()}
                         className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
                       />
                     </div>
@@ -745,6 +845,7 @@
                         min="0"
                         value={todayLog.workshopPitches}
                         onChange={(e) => handleInputChange('workshopPitches', e.target.value)}
+                        onFocus={(e) => e.target.select()}
                         className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
                       />
                     </div>
@@ -756,6 +857,7 @@
                         min="0"
                         value={todayLog.freeTools}
                         onChange={(e) => handleInputChange('freeTools', e.target.value)}
+                        onFocus={(e) => e.target.select()}
                         className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
                       />
                     </div>
@@ -767,6 +869,7 @@
                         min="0"
                         value={todayLog.linkedInPosts}
                         onChange={(e) => handleInputChange('linkedInPosts', e.target.value)}
+                        onFocus={(e) => e.target.select()}
                         className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
                       />
                     </div>
