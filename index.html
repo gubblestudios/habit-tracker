@@ -24,9 +24,29 @@
 
     function HabitTracker() {
       console.log('HabitTracker rendering');
+      
+      // Helper functions - define before using
+      // Parse date string as local date (YYYY-MM-DD)
+      const parseLocalDate = (dateString) => {
+        const [year, month, day] = dateString.split('-');
+        return new Date(year, month - 1, day);
+      };
+
+      // Get today's date as YYYY-MM-DD in local time
+      const getTodayLocal = () => {
+        const d = new Date();
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+      
       const [showWeekTransition, setShowWeekTransition] = useState(false);
       const [lastWeekSummary, setLastWeekSummary] = useState(null);
       const [weekData, setWeekData] = useState(null);
+      const [showHistory, setShowHistory] = useState(false);
+      const [selectedHistoryWeek, setSelectedHistoryWeek] = useState(null);
+      const [weekHistory, setWeekHistory] = useState([]);
       const [todayLog, setTodayLog] = useState({
         rice: 0,
         breakfastCarbs: 0,
@@ -34,51 +54,63 @@
         workshopPitches: 0,
         freeTools: 0,
         linkedInPosts: 0,
-        linkedInEngagement: false,
-        linkedInDMs: 0,
-        tiktoks: 0
+        linkedInEngagement: false
       });
+      const [selectedDate, setSelectedDate] = useState(getTodayLocal());
       const [expandDailyLog, setExpandDailyLog] = useState(false);
-
-      // Parse date string as local date (YYYY-MM-DD)
-      const parseLocalDate = (dateString) => {
-  const [year, month, day] = dateString.split('-');
-  return new Date(year, month - 1, day);
-};
-
-      // Get today's date as YYYY-MM-DD in local time
-      const getTodayLocal = () => {
-  const d = new Date();
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
 
       // Get Monday of current week
       const getMondayOfWeek = (date) => {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = (day === 0 ? -6 : 1) - day;
-  d.setDate(d.getDate() + diff);
+        const d = new Date(date);
+        const day = d.getDay();
+        const diff = (day === 0 ? -6 : 1) - day;
+        d.setDate(d.getDate() + diff);
 
-  // Use local date to avoid timezone issues
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const dayOfMonth = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${dayOfMonth}`;
-};
+        // Use local date to avoid timezone issues
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const dayOfMonth = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${dayOfMonth}`;
+      };
 
       // Get current month
       const getCurrentMonth = () => {
         return new Date().toISOString().slice(0, 7);
       };
 
+      // Get all days of the current week (Monday to Sunday)
+      const getWeekDays = (weekStartDate) => {
+        const days = [];
+        const startDate = parseLocalDate(weekStartDate);
+        for (let i = 0; i < 7; i++) {
+          const date = new Date(startDate);
+          date.setDate(startDate.getDate() + i);
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          days.push(`${year}-${month}-${day}`);
+        }
+        return days;
+      };
+
+      // Format date as "Mmm DD" (e.g., "Jan 12")
+      const formatDateShort = (dateString) => {
+        const date = parseLocalDate(dateString);
+        return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      };
+
       // Initialize or load data
       useEffect(() => {
         const stored = localStorage.getItem('habitData');
+        const historyStored = localStorage.getItem('habitHistory');
         const currentMonday = getMondayOfWeek(new Date());
         const today = getTodayLocal();
+
+        // Load history if exists
+        if (historyStored) {
+          const history = JSON.parse(historyStored);
+          setWeekHistory(history);
+        }
 
         if (!stored) {
           // First time user
@@ -88,15 +120,26 @@
           
           // Check if we've crossed into new week
           if (data.weekStartDate !== currentMonday) {
-            // Save last week for summary
+            // Save last week for summary and to history
             setLastWeekSummary(data);
             setShowWeekTransition(true);
           } else {
             setWeekData(data);
-            // Load today's log if exists
-            const todayEntry = data.dailyLogs.find(log => log.date === today);
-            if (todayEntry) {
-              setTodayLog(todayEntry);
+            // Load selected date's log if exists (defaults to today)
+            const selectedEntry = data.dailyLogs.find(log => log.date === selectedDate);
+            if (selectedEntry) {
+              setTodayLog(selectedEntry);
+            } else {
+              // Reset to empty if no entry exists
+              setTodayLog({
+                rice: 0,
+                breakfastCarbs: 0,
+                chips: 0,
+                workshopPitches: 0,
+                freeTools: 0,
+                linkedInPosts: 0,
+                linkedInEngagement: false
+              });
             }
           }
         }
@@ -125,6 +168,13 @@
           ? lastWeekSummary.monthlyTracking.youtubePosted 
           : false;
 
+        // Save last week to history
+        if (lastWeekSummary) {
+          const updatedHistory = [...weekHistory, lastWeekSummary];
+          setWeekHistory(updatedHistory);
+          localStorage.setItem('habitHistory', JSON.stringify(updatedHistory));
+        }
+
         const newData = {
           weekStartDate: currentMonday,
           dailyLogs: [],
@@ -144,10 +194,9 @@
           workshopPitches: 0,
           freeTools: 0,
           linkedInPosts: 0,
-          linkedInEngagement: false,
-          linkedInDMs: 0,
-          tiktoks: 0
+          linkedInEngagement: false
         });
+        setSelectedDate(getTodayLocal());
       };
 
       const handleInputChange = (field, value) => {
@@ -157,12 +206,31 @@
         }));
       };
 
+      // Load log for selected date
+      useEffect(() => {
+        if (!weekData) return;
+        const selectedEntry = weekData.dailyLogs.find(log => log.date === selectedDate);
+        if (selectedEntry) {
+          setTodayLog(selectedEntry);
+        } else {
+          // Reset to empty if no entry exists
+          setTodayLog({
+            rice: 0,
+            breakfastCarbs: 0,
+            chips: 0,
+            workshopPitches: 0,
+            freeTools: 0,
+            linkedInPosts: 0,
+            linkedInEngagement: false
+          });
+        }
+      }, [selectedDate, weekData]);
+
       const saveTodayLog = () => {
         if (!weekData) return;
 
-        const today = getTodayLocal();
-        const updatedLogs = [...weekData.dailyLogs.filter(log => log.date !== today)];
-        updatedLogs.push({ ...todayLog, date: today });
+        const updatedLogs = [...weekData.dailyLogs.filter(log => log.date !== selectedDate)];
+        updatedLogs.push({ ...todayLog, date: selectedDate });
 
         const updatedData = {
           ...weekData,
@@ -199,9 +267,7 @@
           workshopPitches: acc.workshopPitches + (log.workshopPitches || 0),
           freeTools: acc.freeTools + (log.freeTools || 0),
           linkedInPosts: acc.linkedInPosts + (log.linkedInPosts || 0),
-          linkedInEngagementDays: acc.linkedInEngagementDays + (log.linkedInEngagement ? 1 : 0),
-          linkedInDMs: acc.linkedInDMs + (log.linkedInDMs || 0),
-          tiktoks: acc.tiktoks + (log.tiktoks || 0)
+          linkedInEngagementDays: acc.linkedInEngagementDays + (log.linkedInEngagement ? 1 : 0)
         }), {
           rice: 0,
           breakfastCarbs: 0,
@@ -209,9 +275,7 @@
           workshopPitches: 0,
           freeTools: 0,
           linkedInPosts: 0,
-          linkedInEngagementDays: 0,
-          linkedInDMs: 0,
-          tiktoks: 0
+          linkedInEngagementDays: 0
         });
 
         return totals;
@@ -237,16 +301,13 @@
         // - "max": success when value <= goal (diet limits)
 
         const isComplete = mode === "min" ? value >= goal : value <= goal;
-        const isOver = mode === "max" ? value > goal : false;
 
         const cardClass = `rounded-lg border p-4 ${isComplete ? completeCardClass : baseCardClass}`;
         const trackClass = "h-2 w-full rounded-full bg-zinc-800 overflow-hidden";
         const fillClass =
-          isOver
-            ? "h-full bg-red-500/70"
-            : isComplete
-              ? "h-full bg-emerald-400/70"
-              : "h-full bg-blue-500/60";
+          isComplete
+            ? "h-full bg-emerald-400/70"
+            : "h-full bg-blue-500/60";
 
         const fillWidth =
           mode === "max"
@@ -267,7 +328,7 @@
           <div className={cardClass}>
             <div className="flex items-center justify-between gap-3 mb-2">
               <div className="text-sm text-zinc-400">{title}</div>
-              <div className={`text-sm ${isOver ? "text-red-300" : "text-zinc-500"}`}>{rightText}</div>
+              <div className={`text-sm ${isComplete ? "text-emerald-300" : "text-zinc-500"}`}>{rightText}</div>
             </div>
 
             <div className="text-2xl font-bold mb-3">
@@ -281,12 +342,160 @@
         );
       }
 
+      // History modal
+      if (showHistory) {
+        const allWeeks = [...weekHistory, ...(lastWeekSummary ? [lastWeekSummary] : [])].sort((a, b) => {
+          return parseLocalDate(b.weekStartDate) - parseLocalDate(a.weekStartDate);
+        });
+
+        return (
+          <div className="min-h-screen flex items-center justify-center p-4">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold">Past Weeks</h2>
+                <button
+                  onClick={() => {
+                    setShowHistory(false);
+                    setSelectedHistoryWeek(null);
+                  }}
+                  className="text-zinc-400 hover:text-zinc-300"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {selectedHistoryWeek ? (
+                <div>
+                  <button
+                    onClick={() => setSelectedHistoryWeek(null)}
+                    className="mb-4 text-sm text-zinc-400 hover:text-zinc-300"
+                  >
+                    ← Back to list
+                  </button>
+                  {(() => {
+                    const weekStart = parseLocalDate(selectedHistoryWeek.weekStartDate);
+                    const weekEnd = new Date(weekStart);
+                    weekEnd.setDate(weekStart.getDate() + 6);
+                    const startFormatted = formatDateShort(selectedHistoryWeek.weekStartDate);
+                    const endFormatted = formatDateShort(`${weekEnd.getFullYear()}-${String(weekEnd.getMonth() + 1).padStart(2, '0')}-${String(weekEnd.getDate()).padStart(2, '0')}`);
+                    const historyTotals = calculateWeekTotals(selectedHistoryWeek);
+                    
+                    return (
+                      <div>
+                        <h3 className="text-xl font-bold mb-6">Summary for {startFormatted} - {endFormatted}</h3>
+                        
+                        <div className="space-y-4 mb-8">
+                          <h4 className="text-lg font-semibold text-zinc-400">Summary</h4>
+                          
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-zinc-950 p-4 rounded">
+                              <div className="text-sm text-zinc-500">Rice</div>
+                              <div className="text-xl">{historyTotals.rice}/7</div>
+                            </div>
+                            <div className="bg-zinc-950 p-4 rounded">
+                              <div className="text-sm text-zinc-500">Breakfast Carbs</div>
+                              <div className="text-xl">{historyTotals.breakfastCarbs}/3</div>
+                            </div>
+                            <div className="bg-zinc-950 p-4 rounded">
+                              <div className="text-sm text-zinc-500">Chips</div>
+                              <div className="text-xl">{historyTotals.chips}/1</div>
+                            </div>
+                            <div className="bg-zinc-950 p-4 rounded">
+                              <div className="text-sm text-zinc-500">Workshop Pitches</div>
+                              <div className="text-xl">{historyTotals.workshopPitches}/3</div>
+                            </div>
+                            <div className="bg-zinc-950 p-4 rounded">
+                              <div className="text-sm text-zinc-500">Free Tools</div>
+                              <div className="text-xl">{historyTotals.freeTools}/1</div>
+                            </div>
+                            <div className="bg-zinc-950 p-4 rounded">
+                              <div className="text-sm text-zinc-500">LinkedIn Posts</div>
+                              <div className="text-xl">{historyTotals.linkedInPosts}/2</div>
+                            </div>
+                            <div className="bg-zinc-950 p-4 rounded">
+                              <div className="text-sm text-zinc-500">LinkedIn Engagement</div>
+                              <div className="text-xl">{historyTotals.linkedInEngagementDays}/4 days</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-6 p-4 bg-zinc-950 rounded-lg border border-zinc-800">
+                          <h4 className="text-sm font-semibold text-zinc-400 mb-3">Week Summary</h4>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                            <div>
+                              <span className="text-zinc-500">Diet Goals:</span>
+                              <div className="mt-1">
+                                <div className="text-zinc-400">Rice: {historyTotals.rice}/7 {historyTotals.rice <= 7 && <span className="text-emerald-400">✓</span>}</div>
+                                <div className="text-zinc-400">Breakfast: {historyTotals.breakfastCarbs}/3 {historyTotals.breakfastCarbs <= 3 && <span className="text-emerald-400">✓</span>}</div>
+                                <div className="text-zinc-400">Chips: {historyTotals.chips}/1 {historyTotals.chips <= 1 && <span className="text-emerald-400">✓</span>}</div>
+                              </div>
+                            </div>
+                            <div>
+                              <span className="text-zinc-500">Work Goals:</span>
+                              <div className="mt-1">
+                                <div className="text-zinc-400">Pitches: {historyTotals.workshopPitches}/3 {historyTotals.workshopPitches >= 3 && <span className="text-emerald-400">✓</span>}</div>
+                                <div className="text-zinc-400">Tools: {historyTotals.freeTools}/1 {historyTotals.freeTools >= 1 && <span className="text-emerald-400">✓</span>}</div>
+                                <div className="text-zinc-400">LI Posts: {historyTotals.linkedInPosts}/2 {historyTotals.linkedInPosts >= 2 && <span className="text-emerald-400">✓</span>}</div>
+                              </div>
+                            </div>
+                            <div>
+                              <span className="text-zinc-500">Engagement:</span>
+                              <div className="mt-1">
+                                <div className="text-zinc-400">LI Days: {historyTotals.linkedInEngagementDays}/4 {historyTotals.linkedInEngagementDays >= 4 && <span className="text-emerald-400">✓</span>}</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {allWeeks.length === 0 ? (
+                    <div className="text-center text-zinc-500 py-8">No past weeks yet</div>
+                  ) : (
+                    allWeeks.map((week, index) => {
+                      const weekStart = parseLocalDate(week.weekStartDate);
+                      const weekEnd = new Date(weekStart);
+                      weekEnd.setDate(weekStart.getDate() + 6);
+                      const startFormatted = formatDateShort(week.weekStartDate);
+                      const endFormatted = formatDateShort(`${weekEnd.getFullYear()}-${String(weekEnd.getMonth() + 1).padStart(2, '0')}-${String(weekEnd.getDate()).padStart(2, '0')}`);
+                      
+                      return (
+                        <button
+                          key={index}
+                          onClick={() => setSelectedHistoryWeek(week)}
+                          className="w-full text-left bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 rounded-lg p-4 transition"
+                        >
+                          <div className="font-medium">{startFormatted} - {endFormatted}</div>
+                          <div className="text-sm text-zinc-500 mt-1">
+                            {week.dailyLogs.length} day{week.dailyLogs.length !== 1 ? 's' : ''} logged
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+
       // Week transition modal
       if (showWeekTransition && lastWeekSummary) {
+        // Calculate week date range
+        const weekStart = parseLocalDate(lastWeekSummary.weekStartDate);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        const startFormatted = formatDateShort(lastWeekSummary.weekStartDate);
+        const endFormatted = formatDateShort(`${weekEnd.getFullYear()}-${String(weekEnd.getMonth() + 1).padStart(2, '0')}-${String(weekEnd.getDate()).padStart(2, '0')}`);
+        
         return (
           <div className="min-h-screen flex items-center justify-center p-4">
             <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-8 max-w-2xl w-full">
-              <h2 className="text-2xl font-bold mb-6">Last Week Complete!</h2>
+              <h2 className="text-2xl font-bold mb-6">Summary for {startFormatted} - {endFormatted}</h2>
               
               <div className="space-y-4 mb-8">
                 <h3 className="text-lg font-semibold text-zinc-400">Summary</h3>
@@ -320,13 +529,33 @@
                     <div className="text-sm text-zinc-500">LinkedIn Engagement</div>
                     <div className="text-xl">{lastWeekTotals.linkedInEngagementDays}/4 days</div>
                   </div>
-                  <div className="bg-zinc-950 p-4 rounded">
-                    <div className="text-sm text-zinc-500">LinkedIn DMs</div>
-                    <div className="text-xl">{lastWeekTotals.linkedInDMs}/2</div>
+                </div>
+              </div>
+
+              <div className="mt-6 p-4 bg-zinc-950 rounded-lg border border-zinc-800">
+                <h4 className="text-sm font-semibold text-zinc-400 mb-3">Week Summary</h4>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                  <div>
+                    <span className="text-zinc-500">Diet Goals:</span>
+                    <div className="mt-1">
+                      <div className="text-zinc-400">Rice: {lastWeekTotals.rice}/7 {lastWeekTotals.rice <= 7 && <span className="text-emerald-400">✓</span>}</div>
+                      <div className="text-zinc-400">Breakfast: {lastWeekTotals.breakfastCarbs}/3 {lastWeekTotals.breakfastCarbs <= 3 && <span className="text-emerald-400">✓</span>}</div>
+                      <div className="text-zinc-400">Chips: {lastWeekTotals.chips}/1 {lastWeekTotals.chips <= 1 && <span className="text-emerald-400">✓</span>}</div>
+                    </div>
                   </div>
-                  <div className="bg-zinc-950 p-4 rounded">
-                    <div className="text-sm text-zinc-500">TikToks</div>
-                    <div className="text-xl">{lastWeekTotals.tiktoks}/1</div>
+                  <div>
+                    <span className="text-zinc-500">Work Goals:</span>
+                    <div className="mt-1">
+                      <div className="text-zinc-400">Pitches: {lastWeekTotals.workshopPitches}/3 {lastWeekTotals.workshopPitches >= 3 && <span className="text-emerald-400">✓</span>}</div>
+                      <div className="text-zinc-400">Tools: {lastWeekTotals.freeTools}/1 {lastWeekTotals.freeTools >= 1 && <span className="text-emerald-400">✓</span>}</div>
+                      <div className="text-zinc-400">LI Posts: {lastWeekTotals.linkedInPosts}/2 {lastWeekTotals.linkedInPosts >= 2 && <span className="text-emerald-400">✓</span>}</div>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-zinc-500">Engagement:</span>
+                    <div className="mt-1">
+                      <div className="text-zinc-400">LI Days: {lastWeekTotals.linkedInEngagementDays}/4 {lastWeekTotals.linkedInEngagementDays >= 4 && <span className="text-emerald-400">✓</span>}</div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -351,17 +580,108 @@
             {/* Header */}
             <div className="text-center">
               <h1 className="text-3xl font-bold mb-2">Habit Tracker</h1>
-              <div className="text-zinc-500">
+              <div className="text-zinc-500 mb-4">
                 Week of {parseLocalDate(weekData.weekStartDate).toLocaleDateString("en-US", { month: "long", day: "numeric" })}
+              </div>
+              <div className="flex gap-2 justify-center flex-wrap">
+                <button
+                  onClick={() => setShowHistory(true)}
+                  className="text-sm bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-4 py-2 rounded-lg transition"
+                >
+                  View Past Weeks
+                </button>
+                <button
+                  onClick={() => {
+                    const currentData = localStorage.getItem('habitData');
+                    const historyData = localStorage.getItem('habitHistory');
+                    const exportData = {
+                      currentWeek: currentData ? JSON.parse(currentData) : null,
+                      history: historyData ? JSON.parse(historyData) : []
+                    };
+                    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `habit-tracker-backup-${getTodayLocal()}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition"
+                >
+                  Export Data
+                </button>
+                <label className="text-sm bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition cursor-pointer">
+                  Import Data
+                  <input
+                    type="file"
+                    accept=".json"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                          try {
+                            const importData = JSON.parse(event.target.result);
+                            if (importData.currentWeek) {
+                              localStorage.setItem('habitData', JSON.stringify(importData.currentWeek));
+                            }
+                            if (importData.history && Array.isArray(importData.history)) {
+                              localStorage.setItem('habitHistory', JSON.stringify(importData.history));
+                            }
+                            alert('Data imported successfully! Please refresh the page.');
+                            window.location.reload();
+                          } catch (error) {
+                            alert('Error importing data. Please check the file format.');
+                            console.error(error);
+                          }
+                        };
+                        reader.readAsText(file);
+                      }
+                      e.target.value = ''; // Reset input
+                    }}
+                  />
+                </label>
               </div>
             </div>
 
             {/* Today's Log */}
             <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
-              <h2 className="text-xl font-bold mb-4">Today's Log</h2>
+              <h2 className="text-xl font-bold mb-4">Daily Log</h2>
+
+              {/* Date Selector */}
+              <div className="mb-4">
+                <label className="block text-sm text-zinc-400 mb-2">Select Date to Log:</label>
+                <div className="flex flex-wrap gap-2">
+                  {weekData && getWeekDays(weekData.weekStartDate).map(date => {
+                    const isSelected = date === selectedDate;
+                    const isToday = date === getTodayLocal();
+                    const hasLog = weekData.dailyLogs.some(log => log.date === date);
+                    return (
+                      <button
+                        key={date}
+                        onClick={() => setSelectedDate(date)}
+                        className={`px-3 py-2 rounded text-sm transition ${
+                          isSelected
+                            ? 'bg-blue-600 text-white'
+                            : hasLog
+                              ? 'bg-zinc-800 text-zinc-300 border border-zinc-700'
+                              : 'bg-zinc-950 text-zinc-400 border border-zinc-800'
+                        } ${isToday ? 'ring-2 ring-blue-400' : ''}`}
+                      >
+                        {parseLocalDate(date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                        {isToday && ' (Today)'}
+                        {hasLog && !isSelected && ' ✓'}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
               <div className="text-sm text-zinc-500 mb-6">
-                {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+                {parseLocalDate(selectedDate).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
               </div>
 
               <div className="space-y-4 mb-6">
@@ -463,28 +783,6 @@
                         <span className="text-sm text-zinc-400">Done</span>
                       </div>
                     </div>
-
-                    <div>
-                      <label className="block text-sm text-zinc-400 mb-1">LinkedIn Cold DMs</label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={todayLog.linkedInDMs}
-                        onChange={(e) => handleInputChange('linkedInDMs', e.target.value)}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm text-zinc-400 mb-1">TikTok Videos</label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={todayLog.tiktoks}
-                        onChange={(e) => handleInputChange('tiktoks', e.target.value)}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded px-3 py-2"
-                      />
-                    </div>
                   </div>
                 </div>
               </div>
@@ -493,7 +791,7 @@
                 onClick={saveTodayLog}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg transition"
               >
-                Save Today's Log
+                Save Log for {parseLocalDate(selectedDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
               </button>
             </div>
 
@@ -532,8 +830,6 @@
                 <ProgressCard title="Free Tools" value={weekTotals.freeTools} goal={1} mode="min" />
                 <ProgressCard title="LinkedIn Posts" value={weekTotals.linkedInPosts} goal={2} mode="min" />
                 <ProgressCard title="LinkedIn Engagement" value={weekTotals.linkedInEngagementDays} goal={4} mode="min" />
-                <ProgressCard title="LinkedIn Cold DMs" value={weekTotals.linkedInDMs} goal={2} mode="min" />
-                <ProgressCard title="TikTok Videos" value={weekTotals.tiktoks} goal={1} mode="min" />
               </div>
             </div>
 
@@ -571,8 +867,6 @@
                             {log.freeTools > 0 && <div className="text-zinc-400">Tools: {log.freeTools}</div>}
                             {log.linkedInPosts > 0 && <div className="text-zinc-400">LI Posts: {log.linkedInPosts}</div>}
                             {log.linkedInEngagement && <div className="text-zinc-400">LI Engaged ✓</div>}
-                            {log.linkedInDMs > 0 && <div className="text-zinc-400">LI DMs: {log.linkedInDMs}</div>}
-                            {log.tiktoks > 0 && <div className="text-zinc-400">TikToks: {log.tiktoks}</div>}
                           </div>
                         </div>
                       ))
